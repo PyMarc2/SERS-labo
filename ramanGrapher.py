@@ -178,7 +178,6 @@ class RamanGrapher:
 
 
 if __name__ == '__main__':
-
     rmg1 = RamanGrapher(figsize=(9, 8))
     rmg1.load_image("data/04-08-2020/measure_OOSERSAu_R6G[10-4]_15min_30s_31p3.TIF")
     rmg1.modify_subtract_ref_image("data/04-08-2020/ref_OOSERSAu_empty_forR6G10-4M_30s_31p3.TIF")
@@ -199,5 +198,21 @@ if __name__ == '__main__':
 
     # rmg1.save_image_dialog()
     rmg1.show_plot()
+    rmg1 = RamanGrapher()
+    rmg1.load_image("data/measure_OOSERSAu_R6G_5min-dry_10s_31p3_relcm.TIF")
+    rmg1.modify_subtract_ref_image("data/ref_OOSERSAu_empty_noDescription_10s_31p3_nm.TIF")
+    rmg1.modify_image_to_summed_plot()
+    rmg1.modify_calibration_polynomial(1.67*10**-8, -4.89*10**-5, 0.164, 789)
+    rmg1.modify_smoothen(2, 0.2)
+    rmg1.add_plot(xunit='cm-1', label="R6G w/ 100nm AuNP")
+    rmg1.add_peaks()
 
+    rmg1.load_image("data/measure_OOSERSAu_R6G_5min-dry_10s_31p3_relcm.TIF")
+    rmg1.modify_subtract_ref_image("data/04-08-2020/measure_OOSERSAu_R6G_noDescription_10s_31p3_04_08_2020.TIF")
+    rmg1.modify_image_to_summed_plot()
+    rmg1.modify_calibration_polynomial(1.67 * 10 ** -8, -4.89 * 10 ** -5, 0.164, 789)
+    rmg1.modify_smoothen(2, 0.2)
+    rmg1.add_plot(xunit='cm-1', label="R6G w/ 100nm AuNP")
+    rmg1.add_peaks()
 
+    rmg1.show_plot()
