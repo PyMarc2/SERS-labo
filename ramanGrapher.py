@@ -13,7 +13,7 @@ from spectrumuncurver import SpectrumUncurver
 
 class RamanGrapher:
 
-    def __init__(self):
+    def __init__(self, figsize=(9, 8)):
         self.spectrumImagePath = None
 
         self.initialImage = None
@@ -32,7 +32,7 @@ class RamanGrapher:
         self.outputPlotXData = []
         self.outputPlotYData = []
 
-        self.figure = plt.figure()
+        self.figure = plt.figure(figsize=figsize)
         self.ax = None
         self.canvas = FigureCanvas(self.figure)
         self.xlabel = "wavelenght [nm]"
@@ -63,7 +63,6 @@ class RamanGrapher:
             self.figure.savefig(path, dpi=600)
         except Exception as e:
             print(e)
-
 
     def modify_calibration_polynomial(self, *args, unit='nm'):
         calibrationEquation = np.poly1d(args)
@@ -133,6 +132,7 @@ class RamanGrapher:
 
         self.prepare_plot_change_xlabel()
         self.ax.legend()
+        plt.tight_layout()
 
         if xunit == 'both':
             self.ax2 = self.ax.twiny()
@@ -162,7 +162,7 @@ class RamanGrapher:
         self.outputPlotYData = self.intermediatePlotYData
         self.outputPlotXData = self.intermediatePlotXData
 
-    def add_peaks(self, distance=1, height=0.2, threshold=0, prominence=0, width=0):
+    def add_peaks(self, distance=4, height=0.2, threshold=0, prominence=0.1, width=2):
         peaks, _ = signal.find_peaks(self.outputPlotYData, distance=distance, height=height, threshold=threshold, prominence=prominence, width=width)
         print(peaks)
         if peaks.any():
@@ -179,14 +179,25 @@ class RamanGrapher:
 
 if __name__ == '__main__':
 
-    rmg1 = RamanGrapher()
-    rmg1.load_image("data/measure_OOSERSAu_R6G_5min-dry_10s_31p3_relcm.TIF")
-    rmg1.modify_subtract_ref_image("data/ref_OOSERSAu_empty_noDescription_10s_31p3_nm.TIF")
+    rmg1 = RamanGrapher(figsize=(9, 8))
+    rmg1.load_image("data/04-08-2020/measure_OOSERSAu_R6G[10-4]_15min_30s_31p3.TIF")
+    rmg1.modify_subtract_ref_image("data/04-08-2020/ref_OOSERSAu_empty_forR6G10-4M_30s_31p3.TIF")
     rmg1.modify_image_to_summed_plot()
     rmg1.modify_calibration_polynomial(1.67*10**-8, -4.89*10**-5, 0.164, 789)
     rmg1.modify_smoothen(2, 0.2)
-    rmg1.add_plot(xunit='cm-1', label="R6G w/ 100nm AuNP")
-    rmg1.add_peaks()
+    rmg1.add_plot(xunit='cm-1', label="R6G 10$^{-4}$[M] on 100nm AuNP")
+    rmg1.add_peaks(distance=4, height=0.2, threshold=0, prominence=0.08, width=1)
+
+    rmg1.load_image("data/02-08-2020/measure_OOSERSAu_R6G_5min-dry_10s_31p3_relcm.TIF")
+    rmg1.modify_subtract_ref_image("data/02-08-2020/ref_OOSERSAu_empty_noDescription_10s_31p3_nm.TIF")
+    rmg1.modify_image_to_summed_plot()
+    rmg1.modify_calibration_polynomial(1.67 * 10 ** -8, -4.89 * 10 ** -5, 0.164, 789)
+    rmg1.modify_smoothen(2, 0.2)
+    rmg1.add_plot(xunit='cm-1', label="R6G unkown concentration on 100nmAuNP")
+    rmg1.add_peaks(distance=4, height=0.2, threshold=0, prominence=0.1, width=1)
+
+
+    # rmg1.save_image_dialog()
     rmg1.show_plot()
 
 
