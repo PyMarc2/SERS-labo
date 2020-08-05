@@ -51,7 +51,7 @@ class RamanGrapher:
     def load_image(self, imagePath: str):
         self.spectrumImagePath = imagePath
         self.initialImage = np.array(Image.open(self.spectrumImagePath))
-        # self.initialImage.astype(np.int32)
+        self.initialImage.astype(np.uint64)
         self.intermediateImage = self.initialImage
 
     def reset_image(self):
@@ -81,13 +81,13 @@ class RamanGrapher:
         self.intermediatePlotYData = [sum(self.intermediateImage[:, _]) for _ in range(self.intermediateImage.shape[1])]
         self.intermediatePlotXData = np.linspace(0, self.intermediateImage.shape[1], self.intermediateImage.shape[1])
 
-    def modify_subtract_ref_image(self, refImagePath):
+    def modify_subtract_ref_image(self, refImagePath, multiplicator=1):
         self.refImage = np.array(Image.open(refImagePath))
         # self.refImage.asType(self.imageType)
         print("\nFIRST IMAGE:\n", self.intermediateImage)
         print("\nSECOND IMAGE:\n", self.refImage)
-        output = cv2.subtract(self.intermediateImage, self.refImage)
-        self.intermediateImage = output.astype(np.int8)
+        output = cv2.subtract(self.intermediateImage.astype(np.uint64), np.multiply(self.refImage, multiplicator).astype(np.uint64))
+        self.intermediateImage = output
         print("\nSUBSTRACTION OF REFERENCE:\n", self.intermediateImage)
 
     def modify_subtract_data_from(self, secondImagePath):
@@ -179,40 +179,33 @@ class RamanGrapher:
 
 if __name__ == '__main__':
     rmg1 = RamanGrapher(figsize=(9, 8))
+
+    #R6G 10-4 #1
     rmg1.load_image("data/04-08-2020/measure_OOSERSAu_R6G[10-4]_15min_30s_31p3.TIF")
     rmg1.modify_subtract_ref_image("data/04-08-2020/ref_OOSERSAu_empty_forR6G10-4M_30s_31p3.TIF")
     rmg1.modify_image_to_summed_plot()
     rmg1.modify_calibration_polynomial(1.67*10**-8, -4.89*10**-5, 0.164, 789)
     rmg1.modify_smoothen(2, 0.2)
-    rmg1.add_plot(xunit='cm-1', label="R6G 10$^{-4}$[M] on 100nm AuNP")
-    rmg1.add_peaks(distance=4, height=0.2, threshold=0, prominence=0.08, width=1)
+    rmg1.add_plot(xunit='cm-1', normalized=False, label="04-08-2020, R6G, C=10$^{-4}$M, 100nm AuNP, 30s")
+    # rmg1.add_peaks(distance=4, height=0.2, threshold=0, prominence=0.08, width=1)
 
+    #R6G REFERENCE 1st measure
     rmg1.load_image("data/02-08-2020/measure_OOSERSAu_R6G_5min-dry_10s_31p3_relcm.TIF")
     rmg1.modify_subtract_ref_image("data/02-08-2020/ref_OOSERSAu_empty_noDescription_10s_31p3_nm.TIF")
     rmg1.modify_image_to_summed_plot()
     rmg1.modify_calibration_polynomial(1.67 * 10 ** -8, -4.89 * 10 ** -5, 0.164, 789)
     rmg1.modify_smoothen(2, 0.2)
-    rmg1.add_plot(xunit='cm-1', label="R6G unkown concentration on 100nmAuNP")
-    rmg1.add_peaks(distance=4, height=0.2, threshold=0, prominence=0.1, width=1)
+    rmg1.add_plot(xunit='cm-1', normalized=False, label="02-08-2020, R6G, C=?, 100nmAuNP, 10s")
+    #rmg1.add_peaks(distance=4, height=0.2, threshold=0, prominence=0.1, width=1)
 
-
-    # rmg1.save_image_dialog()
-    rmg1.show_plot()
-    rmg1 = RamanGrapher()
-    rmg1.load_image("data/measure_OOSERSAu_R6G_5min-dry_10s_31p3_relcm.TIF")
-    rmg1.modify_subtract_ref_image("data/ref_OOSERSAu_empty_noDescription_10s_31p3_nm.TIF")
-    rmg1.modify_image_to_summed_plot()
-    rmg1.modify_calibration_polynomial(1.67*10**-8, -4.89*10**-5, 0.164, 789)
-    rmg1.modify_smoothen(2, 0.2)
-    rmg1.add_plot(xunit='cm-1', label="R6G w/ 100nm AuNP")
-    rmg1.add_peaks()
-
-    rmg1.load_image("data/measure_OOSERSAu_R6G_5min-dry_10s_31p3_relcm.TIF")
-    rmg1.modify_subtract_ref_image("data/04-08-2020/measure_OOSERSAu_R6G_noDescription_10s_31p3_04_08_2020.TIF")
+    #R6G 20mg/ml(saturated) sur Thorlabs paper
+    rmg1.load_image("data/05-08-2020/measure_ThorlabsPaper_300s_62mW_#1.tif")
+    rmg1.modify_subtract_ref_image("data/05-08-2020/ref_ThorlabsPaper_300s_62mW_#1.tif")
     rmg1.modify_image_to_summed_plot()
     rmg1.modify_calibration_polynomial(1.67 * 10 ** -8, -4.89 * 10 ** -5, 0.164, 789)
     rmg1.modify_smoothen(2, 0.2)
-    rmg1.add_plot(xunit='cm-1', label="R6G w/ 100nm AuNP")
-    rmg1.add_peaks()
+    rmg1.add_plot(xunit='cm-1', normalized=False, label="05-08-2020, R6G, C=saturated, thorlabPaper, 300s")
+    #rmg1.add_peaks()
+
 
     rmg1.show_plot()
