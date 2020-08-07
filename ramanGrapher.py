@@ -155,6 +155,9 @@ class RamanGrapher:
         self.calibrationEquation = np.poly1d(args)
         self.units = unit
 
+    def load_curvature_polynomial(self, *args):
+        pass
+
     def modify_image_calibration(self):
         if self.calibrationEquation is not None:
             self.calibratedXAxis = self.calibrationEquation(np.linspace(0, self.outputImage.width, self.outputImage.width))
