@@ -1,7 +1,8 @@
-import PIL
+from __future__ import annotations
 import numpy as np
 import cv2
 from PIL import Image
+from PIL.TiffImagePlugin import TiffImageFile
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.ticker import AutoMinorLocator
@@ -9,6 +10,96 @@ from tkinter.filedialog import asksaveasfilename
 from scipy.signal import order_filter
 from scipy import signal
 from spectrumuncurver import SpectrumUncurver
+
+
+class RamanSpectrumImage:
+
+    def __init__(self, imageLoadingInfo=None):
+        self.imageArray = None
+        if imageLoadingInfo is not None:
+            self.load(imageLoadingInfo)
+
+        self.metadata = {"name": "", "expositionTime": 0, "sampleId": 0}
+
+    @property
+    def shape(self):
+        return self.imageArray.shape[1], self.imageArray.shape[0]
+
+    @property
+    def width(self):
+        return self.imageArray.shape[1]
+
+    @property
+    def height(self):
+        return self.imageArray.shape[0]
+
+    def __call__(self):
+        return self.imageArray
+
+    def __getitem__(self, position):
+        return self.imageArray[position[1], position[0]]
+
+    def __setitem__(self, position, value):
+        self.imageArray[position[1], position[0]] = value
+
+    def __iter__(self):
+        longIterrator = []
+        for x in range(self.width):
+            for y in range(self.height):
+                longIterrator.append(self[x, y])
+
+        return longIterrator.__iter__()
+
+    def __sub__(self, other: RamanSpectrumImage):
+        print("MAX OF ARRAY:", max(other))
+        if max(other) <= 2**64:
+            for x in range(self.width):
+                for y in range(self.height):
+                    sub = self[x, y] - other[x, y]
+                    if sub <= 0:
+                        self[x, y] = 0
+                    else:
+                        self[x, y] = sub
+
+        else:
+            print("subtraction is garanteed to hit 0. You cannot multiply the subtrator by a higher number.")
+
+    def __mul__(self, mul):
+        prod = max(self) * mul
+        if prod <= 2**64:
+            for x in range(self.width):
+                for y in range(self.height):
+                    self[x, y] *= mul
+        else:
+            raise ValueError("Product exceeds 64bits. Can't proceed.")
+
+    def load(self, imageInstance):
+        print(type(imageInstance))
+        if isinstance(imageInstance, str):
+            try:
+                imagePath = imageInstance
+                self.imageArray = np.array(Image.open(imagePath)).astype(np.uint64)
+            except Exception as e:
+                print("\nERROR: You must enter a valid path\n", e)
+
+        elif isinstance(imageInstance, np.ndarray):
+            try:
+                if imageInstance.ndim != 2:
+                    raise TypeError("Image must be grayscale (2d).")
+
+                self.imageArray = imageInstance.astype(np.uint64)
+            except Exception as e:
+                print("\nERROR: You must input a valid array\n", e)
+
+        elif isinstance(imageInstance, (type(Image), TiffImageFile)):
+            try:
+                tempImageArray = np.array(imageInstance)
+                if tempImageArray.ndim != 2:
+                    raise TypeError("Image must be grayscale (2d).")
+
+                self.imageArray = np.array(imageInstance).astype(np.uint64)
+            except Exception as e:
+                print("\nERROR: You must input a valid PIL Image\n", e)
 
 
 class RamanGrapher:
@@ -48,10 +139,38 @@ class RamanGrapher:
         self.imageType = np.int16
         self.uncurver = SpectrumUncurver()
 
-    def load_image(self, imagePath: str):
-        self.spectrumImagePath = imagePath
-        self.initialImage = np.array(Image.open(self.spectrumImagePath))
-        self.initialImage.astype(np.uint64)
+    def reset_grapher(self):
+        self.spectrumImagePath = None
+        self.initialImage = None
+        self.intermediateImage = None
+        self.outputImage = None
+        self.initialPlotXData = None
+        self.initialPlotYData = None
+        self.outputPlotXData = None
+        self.outputPlotYData = None
+        self.intermediatePlotXData = None
+        self.intermediatePlotYData = None
+
+    def load_image_from_path(self, imagePath: str):
+        if self.initialImage is None:
+            self.spectrumImagePath = imagePath
+            self.initialImage = np.array(Image.open(self.spectrumImagePath))
+            self.initialImage.astype(np.uint64)
+            self.intermediateImage = self.initialImage
+
+        else:
+            self.reset_grapher()
+            self.spectrumImagePath = imagePath
+            self.initialImage = np.array(Image.open(self.spectrumImagePath))
+            self.initialImage.astype(np.uint32)
+            self.intermediateImage = self.initialImage
+
+    def load_image_from_array(self, imageArray):
+        self.initialImage = imageArray.astype(np.uint32)
+        self.intermediateImage = self.initialImage
+
+    def load_image_from_PIL(self, imageArray):
+        self.initialImage = np.array(imageArray).astype(np.uint32)
         self.intermediateImage = self.initialImage
 
     def reset_image(self):
@@ -84,9 +203,9 @@ class RamanGrapher:
     def modify_subtract_ref_image(self, refImagePath, multiplicator=1):
         self.refImage = np.array(Image.open(refImagePath))
         # self.refImage.asType(self.imageType)
-        print("\nFIRST IMAGE:\n", self.intermediateImage)
-        print("\nSECOND IMAGE:\n", self.refImage)
-        output = cv2.subtract(self.intermediateImage.astype(np.uint64), np.multiply(self.refImage, multiplicator).astype(np.uint64))
+        # print("\nFIRST IMAGE:\n", self.intermediateImage)
+        # print("\nSECOND IMAGE:\n", self.refImage)
+        output = self.intermediateImage - (self.refImage*multiplicator)
         self.intermediateImage = output
         print("\nSUBSTRACTION OF REFERENCE:\n", self.intermediateImage)
 

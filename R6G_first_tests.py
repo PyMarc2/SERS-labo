@@ -30,8 +30,8 @@ rmg1 = RamanGrapher(figsize=(9, 8))
 #rmg1.add_plot(xunit='cm-1', normalized=True, label="05-08-2020, R6G, C=saturated, thorlabPaper, 300s")
 #rmg1.add_peaks(distance=3, prominence=0.1, width=2,)
 
-rmg1.load_image("data/05-08-2020/measure_KimwipePaper_300s_62mW_#2.tif")
-rmg1.modify_subtract_ref_image("data/05-08-2020/ref_KimwipePaper_300s_62mW_#2.tif", 2.2)
+rmg1.load_image_from_path("data/05-08-2020/measure_KimwipePaper_300s_62mW_#2.tif")
+rmg1.modify_subtract_ref_image("data/05-08-2020/ref_KimwipePaper_300s_62mW_#2.tif", 1)
 
 rmg1.modify_image_to_summed_plot()
 rmg1.modify_calibration_polynomial(1.67 * 10 ** -8, -4.89 * 10 ** -5, 0.164, 789)
@@ -40,7 +40,7 @@ rmg1.add_plot(xunit='cm-1', normalized=False, label="05-08-2020, R6G, C=saturate
 #rmg1.add_peaks(distance=3, prominence=0.1, width=2, )
 
 #R6G REFERENCE 1st measure
-rmg1.load_image("data/02-08-2020/measure_OOSERSAu_R6G_5min-dry_10s_31p3_relcm.TIF")
+rmg1.load_image_from_path("data/02-08-2020/measure_OOSERSAu_R6G_5min-dry_10s_31p3_relcm.TIF")
 rmg1.modify_subtract_ref_image("data/02-08-2020/ref_OOSERSAu_empty_noDescription_10s_31p3_nm.TIF")
 rmg1.modify_image_to_summed_plot()
 rmg1.modify_calibration_polynomial(1.67 * 10 ** -8, -4.89 * 10 ** -5, 0.164, 789)
