@@ -81,9 +81,9 @@ class TestRamanSpectrumImage(TestCase):
         self.testImage.load("test_gray32768_image.tif")
 
         with self.subTest("Test without limit"):
-            print(self.testImage.imageArray)
+            print(self.testImage)
             iamge2 = self.testImage
-            self.testImage -= iamge2
+            self.testImage - iamge2
             print(self.testImage)
             self.assertEqual(self.testImage[0, 0], 0)
 
@@ -91,7 +91,8 @@ class TestRamanSpectrumImage(TestCase):
         pass
 
     def test_mul(self):
-        pass
+        with self.subTest("multi < than 2**64"):
+            pass
 
     def test_load_meta(self):
         pass
@@ -127,13 +128,13 @@ class TestRamanSpectrumImage(TestCase):
             self.assertEqual(testGrayImageArray.dtype, np.uint16)
             self.assertEqual(testGrayImageArray[0,0], 32768)
 
-        with self.subTest("loaded image converted to uint64"):
+        with self.subTest("loaded image converted to uint32"):
             self.setUp()
             self.testImage.load("test_gray32768_image.tif")
-            self.assertEqual(self.testImage.imageArray.dtype, np.uint64)
+            self.assertEqual(self.testImage.imageArray.dtype, np.uint32)
             self.tearDown()
 
-        with self.subTest("image value not scaledUp uint16 -> uint64"):
+        with self.subTest("image value not scaledUp uint16 -> uint32"):
             self.setUp()
             self.testImage.load("test_gray32768_image.tif")
             self.assertEqual(self.testImage.imageArray[0, 0], 32768)

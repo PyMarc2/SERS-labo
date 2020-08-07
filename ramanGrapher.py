@@ -10,16 +10,23 @@ from tkinter.filedialog import asksaveasfilename
 from scipy.signal import order_filter
 from scipy import signal
 from spectrumuncurver import SpectrumUncurver
+np.seterr(all='warn')
+import warnings
+warnings.filterwarnings('error')
 
 
 class RamanSpectrumImage:
 
     def __init__(self, imageLoadingInfo=None):
+        self.dataType = np.uint32
         self.imageArray = None
+        
         if imageLoadingInfo is not None:
             self.load(imageLoadingInfo)
+        else:
+            self.imageArray = np.zeros(400, 1340, dtype=self.dataType)
 
-        self.metadata = {"name": "", "expositionTime": 0, "sampleId": 0}
+        self.metadata = {"name": "", "expositionTime": 0, "sampleId": 0, "xunits": "pixels"}
 
     @property
     def shape(self):
@@ -47,20 +54,19 @@ class RamanSpectrumImage:
         for x in range(self.width):
             for y in range(self.height):
                 longIterrator.append(self[x, y])
-
         return longIterrator.__iter__()
 
     def __sub__(self, other: RamanSpectrumImage):
-        print("MAX OF ARRAY:", max(other))
+        # print("MAX OF ARRAY:", max(other))
         if max(other) <= 2**64:
             for x in range(self.width):
                 for y in range(self.height):
-                    sub = self[x, y] - other[x, y]
-                    if sub <= 0:
-                        self[x, y] = 0
-                    else:
+                    try:
+                        sub = self[x, y] - other[x, y]
                         self[x, y] = sub
-
+                    except Warning as e:
+                        self[x, y] = 0
+            return self
         else:
             print("subtraction is garanteed to hit 0. You cannot multiply the subtrator by a higher number.")
 
@@ -70,15 +76,16 @@ class RamanSpectrumImage:
             for x in range(self.width):
                 for y in range(self.height):
                     self[x, y] *= mul
+            return self
         else:
             raise ValueError("Product exceeds 64bits. Can't proceed.")
 
     def load(self, imageInstance):
-        print(type(imageInstance))
+        # print(type(imageInstance))
         if isinstance(imageInstance, str):
             try:
                 imagePath = imageInstance
-                self.imageArray = np.array(Image.open(imagePath)).astype(np.uint64)
+                self.imageArray = np.array(Image.open(imagePath)).astype(self.dataType)
             except Exception as e:
                 print("\nERROR: You must enter a valid path\n", e)
 
@@ -87,7 +94,7 @@ class RamanSpectrumImage:
                 if imageInstance.ndim != 2:
                     raise TypeError("Image must be grayscale (2d).")
 
-                self.imageArray = imageInstance.astype(np.uint64)
+                self.imageArray = imageInstance.astype(self.dataType)
             except Exception as e:
                 print("\nERROR: You must input a valid array\n", e)
 
@@ -97,7 +104,7 @@ class RamanSpectrumImage:
                 if tempImageArray.ndim != 2:
                     raise TypeError("Image must be grayscale (2d).")
 
-                self.imageArray = np.array(imageInstance).astype(np.uint64)
+                self.imageArray = np.array(imageInstance).astype(self.dataType)
             except Exception as e:
                 print("\nERROR: You must input a valid PIL Image\n", e)
 
@@ -105,23 +112,9 @@ class RamanSpectrumImage:
 class RamanGrapher:
 
     def __init__(self, figsize=(9, 8)):
-        self.spectrumImagePath = None
-
         self.initialImage = None
-        self.intermediateImage = None
         self.outputImage = None
-
-        self.initialPlot = None
-        self.initialPlotXData = []
-        self.initialPlotYData = []
-
-        self.intermediatePlot = None
-        self.intermediatePlotXData = []
-        self.intermediatePlotYData = []
-
-        self.outputPlot = None
-        self.outputPlotXData = []
-        self.outputPlotYData = []
+        self.plotData = [[], []]
 
         self.figure = plt.figure(figsize=figsize)
         self.ax = None
@@ -136,83 +129,48 @@ class RamanGrapher:
         self.excitationWavelenght = 785
 
         self.amountOfPlots = 0
-        self.imageType = np.int16
+        self.dataType = np.uint32
+        self.calibrationEquation = None
         self.uncurver = SpectrumUncurver()
 
     def reset_grapher(self):
-        self.spectrumImagePath = None
         self.initialImage = None
-        self.intermediateImage = None
         self.outputImage = None
-        self.initialPlotXData = None
-        self.initialPlotYData = None
-        self.outputPlotXData = None
-        self.outputPlotYData = None
-        self.intermediatePlotXData = None
-        self.intermediatePlotYData = None
 
-    def load_image_from_path(self, imagePath: str):
-        if self.initialImage is None:
-            self.spectrumImagePath = imagePath
-            self.initialImage = np.array(Image.open(self.spectrumImagePath))
-            self.initialImage.astype(np.uint64)
-            self.intermediateImage = self.initialImage
+    def load_ramanSpectrum_image(self, image):
+        self.initialImage = image
+        self.outputImage = image
 
-        else:
-            self.reset_grapher()
-            self.spectrumImagePath = imagePath
-            self.initialImage = np.array(Image.open(self.spectrumImagePath))
-            self.initialImage.astype(np.uint32)
-            self.intermediateImage = self.initialImage
+    def reset_output_image(self):
+        self.outputImage = self.initialImage
 
-    def load_image_from_array(self, imageArray):
-        self.initialImage = imageArray.astype(np.uint32)
-        self.intermediateImage = self.initialImage
-
-    def load_image_from_PIL(self, imageArray):
-        self.initialImage = np.array(imageArray).astype(np.uint32)
-        self.intermediateImage = self.initialImage
-
-    def reset_image(self):
-        self.intermediateImage = self.initialImage
-
-    def save_image_dialog(self):
+    def save_plot_dialog(self):
         try:
             path = asksaveasfilename()
             self.figure.savefig(path, dpi=600)
         except Exception as e:
             print(e)
 
-    def modify_calibration_polynomial(self, *args, unit='nm'):
-        calibrationEquation = np.poly1d(args)
-        self.calibratedXAxis = calibrationEquation(np.linspace(0, self.intermediateImage.shape[1], self.intermediateImage.shape[1]))
-        print("\nLENGHT OF XAXIS FROM CALIBRATION:\n", len(self.calibratedXAxis))
-        self.intermediatePlotXData = self.calibratedXAxis
+    def load_calibration_polynomial(self, *args, unit='nm'):
+        self.calibrationEquation = np.poly1d(args)
         self.units = unit
 
+    def modify_image_calibration(self):
+        if self.calibrationEquation is not None:
+            self.calibratedXAxis = self.calibrationEquation(np.linspace(0, self.outputImage.width, self.outputImage.width))
+            print("\nLENGHT OF XAXIS FROM CALIBRATION:\n", len(self.calibratedXAxis))
+            self.plotData[0] = self.calibratedXAxis
+        else:
+            pass
+
     def modify_curvature(self, xlim, ylim, method='gaussian'):
-        self.uncurver.load_array_image(imageArray=self.intermediateImage)
+        self.uncurver.load_array_image(imageArray=self.outputImage)
         output = self.uncurver.uncurve_spectrum_image(xlim=xlim, ylim=ylim, method=method)
-        self.intermediateImage = output
+        self.outputImage = output
 
     def modify_image_to_summed_plot(self):
-        print("\nIMAGE TO PLOT VALUES:\n", self.intermediateImage)
-        self.intermediatePlotYData = [sum(self.intermediateImage[:, _]) for _ in range(self.intermediateImage.shape[1])]
-        self.intermediatePlotXData = np.linspace(0, self.intermediateImage.shape[1], self.intermediateImage.shape[1])
-
-    def modify_subtract_ref_image(self, refImagePath, multiplicator=1):
-        self.refImage = np.array(Image.open(refImagePath))
-        # self.refImage.asType(self.imageType)
-        # print("\nFIRST IMAGE:\n", self.intermediateImage)
-        # print("\nSECOND IMAGE:\n", self.refImage)
-        output = self.intermediateImage - (self.refImage*multiplicator)
-        self.intermediateImage = output
-        print("\nSUBSTRACTION OF REFERENCE:\n", self.intermediateImage)
-
-    def modify_subtract_data_from(self, secondImagePath):
-        self.secondImage = np.array(Image.open(secondImagePath))
-        self.intermediateImage = cv2.subtract(self.secondImage, self.intermediateImage)
-        print("\nSUBSTRACTION OF DATA FROM IMAGE:\n", self.intermediateImage)
+        self.plotData[1] = [sum(self.outputImage[_, :]) for _ in range(self.outputImage.width)]
+        self.plotData[0] = np.linspace(0, self.outputImage.width, self.outputImage.width)
 
     def modify_switch_units(self, units):
         if units == 'both':
@@ -220,8 +178,8 @@ class RamanGrapher:
         elif self.units == units:
             pass
         elif units == 'cm-1':
-            output = np.divide((1*10**7), self.excitationWavelenght) - np.divide((1*10**7), self.intermediatePlotXData)
-            self.intermediatePlotXData = output
+            output = np.divide((1*10**7), self.excitationWavelenght) - np.divide((1*10**7), self.plotData[0])
+            self.plotData[0] = output
             self.units = 'cm-1'
 
         elif units == 'nm':
@@ -229,35 +187,11 @@ class RamanGrapher:
 
     def modify_smoothen(self, order, fc, btype="lowpass"):
         b, a = signal.butter(order, fc, btype=btype)
-        output = signal.filtfilt(b, a, self.intermediatePlotYData)
-        self.intermediatePlotYData = output
+        output = signal.filtfilt(b, a, self.plotData[1])
+        self.plotData[1] = output
 
-    def add_plot(self, label="", normalized=True, xlimits=(0, 1340), xunit='nm', subTicks=True, peakfind=(False, 0, 0, 0, 0, 0, 0, 0, 0)):
-
-        if normalized:
-            self.prepare_normalize_plot()
-
-        if peakfind[0]:
-            print("should find peaks and output x_index")
-            peaks = []
-
-        self.modify_switch_units(xunit)
-
-        self.prepare_make_output_data()
-        self.prepare_plot_reformat_subplots()
-        self.ax.plot(self.outputPlotXData[xlimits[0]:xlimits[1]], self.outputPlotYData[xlimits[0]:xlimits[1]], label=label, linewidth=1.2)
-        if subTicks:
-            self.ax.xaxis.set_minor_locator(AutoMinorLocator())
-
-        self.prepare_plot_change_xlabel()
-        self.ax.legend()
-        plt.tight_layout()
-
-        if xunit == 'both':
-            self.ax2 = self.ax.twiny()
-            self.modify_switch_units('cm-1')
-            self.prepare_make_output_data()
-            self.ax2.plot(self.outputPlotXData, np.ones(len(self.outputPlotXData)))
+    def modify_normalize_plot(self):
+        self.plotData[1] /= max(self.plotData[1])
 
     def prepare_plot_change_xlabel(self):
         if self.units == 'nm':
@@ -274,19 +208,37 @@ class RamanGrapher:
 
         self.ax = self.figure.add_subplot(n + 1, 1, n + 1)
 
-    def prepare_normalize_plot(self):
-        self.intermediatePlotYData /= max(self.intermediatePlotYData)
+    def add_plot(self, label="", normalized=True, xlimits=(0, 1340), xunit='nm', subTicks=True):
+        self.modify_image_to_summed_plot()
+        self.modify_image_calibration()
+        self.modify_smoothen(2, 0.2)
+        self.modify_switch_units(xunit)
 
-    def prepare_make_output_data(self):
-        self.outputPlotYData = self.intermediatePlotYData
-        self.outputPlotXData = self.intermediatePlotXData
+        if normalized:
+            self.modify_normalize_plot()
+
+        self.prepare_plot_reformat_subplots()
+        self.prepare_plot_change_xlabel()
+
+        self.ax.plot(self.plotData[0][xlimits[0]:xlimits[1]], self.plotData[1][xlimits[0]:xlimits[1]], label=label, linewidth=1.2)
+        
+        if subTicks:
+            self.ax.xaxis.set_minor_locator(AutoMinorLocator())
+
+        self.ax.legend()
+        plt.tight_layout()
+
+        if xunit == 'both':
+            self.ax2 = self.ax.twiny()
+            self.modify_switch_units('cm-1')
+            self.ax2.plot(self.plotData[0], np.ones(len(self.plotData[0])))
 
     def add_peaks(self, distance=4, height=0.2, threshold=0, prominence=0.1, width=2):
-        peaks, _ = signal.find_peaks(self.outputPlotYData, distance=distance, height=height, threshold=threshold, prominence=prominence, width=width)
+        peaks, _ = signal.find_peaks(self.plotData[1], distance=distance, height=height, threshold=threshold, prominence=prominence, width=width)
         print(peaks)
         if peaks.any():
-            self.ax.plot(self.outputPlotXData[peaks], self.outputPlotYData[peaks], 'o')
-        for x, y in zip(self.outputPlotXData[peaks], self.outputPlotYData[peaks]):
+            self.ax.plot(self.plotData[0][peaks], self.plotData[1][peaks], 'o')
+        for x, y in zip(self.plotData[0][peaks], self.plotData[1][peaks]):
             label = "{}".format(int(x))
             self.ax.annotate(label, (x, y), textcoords="offset points", xytext=(-10, -10), ha="center", rotation=90, color='k')
 
@@ -297,34 +249,23 @@ class RamanGrapher:
 
 
 if __name__ == '__main__':
-    rmg1 = RamanGrapher(figsize=(9, 8))
+    rmg1 = RamanGrapher()
+    rmg1.load_calibration_polynomial(1.67 * 10 ** -8, -4.89 * 10 ** -5, 0.164, 789)
 
-    #R6G 10-4 #1
-    rmg1.load_image("data/04-08-2020/measure_OOSERSAu_R6G[10-4]_15min_30s_31p3.TIF")
-    rmg1.modify_subtract_ref_image("data/04-08-2020/ref_OOSERSAu_empty_forR6G10-4M_30s_31p3.TIF")
-    rmg1.modify_image_to_summed_plot()
-    rmg1.modify_calibration_polynomial(1.67*10**-8, -4.89*10**-5, 0.164, 789)
-    rmg1.modify_smoothen(2, 0.2)
-    rmg1.add_plot(xunit='cm-1', normalized=False, label="04-08-2020, R6G, C=10$^{-4}$M, 100nm AuNP, 30s")
-    # rmg1.add_peaks(distance=4, height=0.2, threshold=0, prominence=0.08, width=1)
+    # R6G 20mg/ml(saturated) sur Thorlabs paper
+    measure = RamanSpectrumImage("data/07-08-2020/measure_KimwipePaper_R6Gsaturated_300s_62mW_#4.tif")
+    background = RamanSpectrumImage("data/07-08-2020/ref_KimwipePaper_300s_62mW_#4.tif")
 
-    #R6G REFERENCE 1st measure
-    rmg1.load_image("data/02-08-2020/measure_OOSERSAu_R6G_5min-dry_10s_31p3_relcm.TIF")
-    rmg1.modify_subtract_ref_image("data/02-08-2020/ref_OOSERSAu_empty_noDescription_10s_31p3_nm.TIF")
-    rmg1.modify_image_to_summed_plot()
-    rmg1.modify_calibration_polynomial(1.67 * 10 ** -8, -4.89 * 10 ** -5, 0.164, 789)
-    rmg1.modify_smoothen(2, 0.2)
-    rmg1.add_plot(xunit='cm-1', normalized=False, label="02-08-2020, R6G, C=?, 100nmAuNP, 10s")
-    #rmg1.add_peaks(distance=4, height=0.2, threshold=0, prominence=0.1, width=1)
+    measureSERS = RamanSpectrumImage("data/02-08-2020/measure_OOSERSAu_R6G_5min-dry_10s_31p3_relcm.TIF")
+    refSERS = RamanSpectrumImage("data/02-08-2020/ref_OOSERSAu_empty_noDescription_10s_31p3_nm.TIF")
 
-    #R6G 20mg/ml(saturated) sur Thorlabs paper
-    rmg1.load_image("data/05-08-2020/measure_ThorlabsPaper_300s_62mW_#1.tif")
-    rmg1.modify_subtract_ref_image("data/05-08-2020/ref_ThorlabsPaper_300s_62mW_#1.tif")
-    rmg1.modify_image_to_summed_plot()
-    rmg1.modify_calibration_polynomial(1.67 * 10 ** -8, -4.89 * 10 ** -5, 0.164, 789)
-    rmg1.modify_smoothen(2, 0.2)
-    rmg1.add_plot(xunit='cm-1', normalized=False, label="05-08-2020, R6G, C=saturated, thorlabPaper, 300s")
-    #rmg1.add_peaks()
-
-
+    rmg1.load_ramanSpectrum_image(measure-background)
+    rmg1.add_plot(xunit='cm-1', normalized=False, label="07-08-2020, R6G, C=saturated, kimwipePaper, 300s")
     rmg1.show_plot()
+
+    rmg2 = RamanGrapher()
+    rmg2.load_calibration_polynomial(1.67 * 10 ** -8, -4.89 * 10 ** -5, 0.164, 789)
+    rmg2.load_ramanSpectrum_image(measureSERS - refSERS)
+    rmg2.add_plot(xunit='cm-1', normalized=False, label="02-08-2020, R6G, C=10$^{-4}$, OOSERS 100nm Au, 10s")
+    rmg2.show_plot()
+
