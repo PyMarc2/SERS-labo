@@ -111,35 +111,53 @@ class RamanSpectrumImage:
 
 class RamanGrapher:
 
-    def __init__(self, figsize=(9, 8)):
+    def __init__(self, image=None, dataUnit="pixel"):
         self.initialImage = None
         self.outputImage = None
-        self.plotData = [[], []]
 
-        self.figure = plt.figure(figsize=figsize)
+        self.plotData = [[], []]
+        self.figure = None
         self.ax = None
-        self.canvas = FigureCanvas(self.figure)
-        self.xlabel = "wavelenght [nm]"
+        self.xlabel = "pixel"
         self.ylabel = "relative intensity [a. u.]"
 
-        self.calibratedXAxis = []
+        self.dataUnit = dataUnit
+        self.calibrationUnit = None
+        self.calibrationEquation = None
+        self.uncurveEquation = None
 
-        # Experiment parameters
-        self.units = "nm"
         self.excitationWavelenght = 785
-
         self.amountOfPlots = 0
         self.dataType = np.uint32
-        self.calibrationEquation = None
-        self.uncurver = SpectrumUncurver()
+
+        if image is not None:
+            self.load_ramanSpectrum_image(image, dataUnit)
 
     def reset_grapher(self):
         self.initialImage = None
         self.outputImage = None
+        self.plotData = [[], []]
+        self.figure = None
+        self.ax = None
+        self.calibrationEquation = None
+        self.uncurveEquation = None
+        self.dataUnit = "pixel"
+        self.calibrationUnit = None
+        self.xlabel = "pixel"
+        self.ylabel = "relative intensity [a. u.]"
+        self.amountOfPlots = 0
+        self.excitationWavelenght = 785
 
-    def load_ramanSpectrum_image(self, image):
+    def partially_reset_grapher(self):
+        self.initialImage = None
+        self.outputImage = None
+        self.plotData = [[], []]
+
+    def load_ramanSpectrum_image(self, image, dataUnit="pixel"):
+        self.partially_reset_grapher()
         self.initialImage = image
         self.outputImage = image
+        self.dataUnit = dataUnit
 
     def reset_output_image(self):
         self.outputImage = self.initialImage
@@ -153,16 +171,16 @@ class RamanGrapher:
 
     def load_calibration_polynomial(self, *args, unit='nm'):
         self.calibrationEquation = np.poly1d(args)
-        self.units = unit
+        self.calibrationUnit = unit
 
     def load_curvature_polynomial(self, *args):
         pass
 
     def modify_image_calibration(self):
-        if self.calibrationEquation is not None:
-            self.calibratedXAxis = self.calibrationEquation(np.linspace(0, self.outputImage.width, self.outputImage.width))
-            print("\nLENGHT OF XAXIS FROM CALIBRATION:\n", len(self.calibratedXAxis))
-            self.plotData[0] = self.calibratedXAxis
+        if self.calibrationEquation is not None and self.dataUnit == "pixel":
+            self.plotData[0] = self.calibrationEquation(np.linspace(0, self.outputImage.width, self.outputImage.width))
+            self.dataUnit = self.calibrationUnit
+            # print("\nLENGHT OF XAXIS FROM CALIBRATION:\n", len(self.calibratedXAxis))
         else:
             pass
 
@@ -176,14 +194,13 @@ class RamanGrapher:
         self.plotData[0] = np.linspace(0, self.outputImage.width, self.outputImage.width)
 
     def modify_switch_units(self, units):
-        if units == 'both':
-            pass
-        elif self.units == units:
+
+        if self.dataUnit == units or self.dataUnit == "pixel":
             pass
         elif units == 'cm-1':
             output = np.divide((1*10**7), self.excitationWavelenght) - np.divide((1*10**7), self.plotData[0])
             self.plotData[0] = output
-            self.units = 'cm-1'
+            self.dataUnit = 'cm-1'
 
         elif units == 'nm':
             pass
@@ -197,9 +214,9 @@ class RamanGrapher:
         self.plotData[1] /= max(self.plotData[1])
 
     def prepare_plot_change_xlabel(self):
-        if self.units == 'nm':
+        if self.dataUnit == 'nm':
             self.xlabel = "wavelenght [nm]"
-        elif self. units == 'cm-1':
+        elif self.dataUnit == 'cm-1':
             self.xlabel = "wavenumber [cm$^{-1}$]"
         self.ax.set_xlabel(self.xlabel)
         self.ax.set_ylabel(self.ylabel)
@@ -211,7 +228,9 @@ class RamanGrapher:
 
         self.ax = self.figure.add_subplot(n + 1, 1, n + 1)
 
-    def add_plot(self, label="", normalized=True, xlimits=(0, 1340), xunit='nm', subTicks=True):
+    def add_plot(self, figsize=(9, 8), label="", normalized=True, xlimits=(0, 1340), xunit='nm', subTicks=True):
+        if self.figure is None:
+            self.figure = plt.figure(figsize=figsize)
         self.modify_image_to_summed_plot()
         self.modify_image_calibration()
         self.modify_smoothen(2, 0.2)
@@ -253,7 +272,7 @@ class RamanGrapher:
 
 if __name__ == '__main__':
     rmg1 = RamanGrapher()
-    rmg1.load_calibration_polynomial(1.67 * 10 ** -8, -4.89 * 10 ** -5, 0.164, 789)
+    rmg1.load_calibration_polynomial(1.67 * 10 ** -8, -4.89 * 10 ** -5, 0.164, 789, unit="nm")
 
     # R6G 20mg/ml(saturated) sur Thorlabs paper
     measure = RamanSpectrumImage("data/07-08-2020/measure_KimwipePaper_R6Gsaturated_300s_62mW_#4.tif")
@@ -264,11 +283,6 @@ if __name__ == '__main__':
 
     rmg1.load_ramanSpectrum_image(measure-background)
     rmg1.add_plot(xunit='cm-1', normalized=False, label="07-08-2020, R6G, C=saturated, kimwipePaper, 300s")
+    rmg1.add_plot(xunit='cm-1', normalized=False, label="07-08-2020, R6G, C=saturated, kimwipePaper, 300s")
     rmg1.show_plot()
-
-    rmg2 = RamanGrapher()
-    rmg2.load_calibration_polynomial(1.67 * 10 ** -8, -4.89 * 10 ** -5, 0.164, 789)
-    rmg2.load_ramanSpectrum_image(measureSERS - refSERS)
-    rmg2.add_plot(xunit='cm-1', normalized=False, label="02-08-2020, R6G, C=10$^{-4}$, OOSERS 100nm Au, 10s")
-    rmg2.show_plot()
 
