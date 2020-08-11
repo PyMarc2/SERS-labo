@@ -36,6 +36,13 @@ class TestRamanSpectrumImage(TestCase):
             self.testImage.load("test_gray32768_image.tif")
             rowArray = np.ones((400, 1340))[0, :]
             self.assertEqual(self.testImage[:, 0].shape, rowArray.shape)
+            self.tearDown()
+
+        with self.subTest("load part of a row"):
+            self.setUp()
+            self.testImage.load("test_gray32768_image.tif")
+            rowArray = np.ones((400, 1340))[0, 10:100]
+            self.assertEqual(self.testImage[10:100, 0].shape, rowArray.shape)
 
     def test_setitem(self):
         with self.subTest("set an element"):

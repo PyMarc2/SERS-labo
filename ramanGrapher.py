@@ -10,6 +10,8 @@ from tkinter.filedialog import asksaveasfilename
 from scipy.signal import order_filter
 from scipy import signal
 from spectrumuncurver import SpectrumUncurver
+from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
+                               AutoMinorLocator)
 np.seterr(all='warn')
 import warnings
 warnings.filterwarnings('error')
@@ -24,7 +26,7 @@ class RamanSpectrumImage:
         if imageLoadingInfo is not None:
             self.load(imageLoadingInfo)
         else:
-            self.imageArray = np.zeros(400, 1340, dtype=self.dataType)
+            self.imageArray = np.zeros((400, 1340), dtype=self.dataType)
 
         self.metadata = {"name": "", "expositionTime": 0, "sampleId": 0, "xunits": "pixels"}
 
@@ -124,7 +126,7 @@ class RamanGrapher:
         self.dataUnit = dataUnit
         self.calibrationUnit = None
         self.calibrationEquation = None
-        self.uncurveEquation = None
+        self.curvatureEquation = None
 
         self.excitationWavelenght = 785
         self.amountOfPlots = 0
@@ -169,29 +171,41 @@ class RamanGrapher:
         except Exception as e:
             print(e)
 
+    def find_calibration_from_points(self, pixelData, nmData):
+        polynomial = np.polyfit(pixelData, nmData, deg=3)
+        return polynomial
+
     def load_calibration_polynomial(self, *args, unit='nm'):
         self.calibrationEquation = np.poly1d(args)
+        print(self.calibrationEquation)
         self.calibrationUnit = unit
 
-    def load_curvature_polynomial(self, *args):
-        pass
+    def load_curvature_polynomial(self, *args, type='poly'):
+        if type == 'poly':
+            self.curvatureEquation = np.poly1d(args)
 
     def modify_image_calibration(self):
         if self.calibrationEquation is not None and self.dataUnit == "pixel":
-            self.plotData[0] = self.calibrationEquation(np.linspace(0, self.outputImage.width, self.outputImage.width))
+            self.plotData[0] = self.calibrationEquation(np.linspace(0, self.outputImage.width-1, self.outputImage.width))
             self.dataUnit = self.calibrationUnit
             # print("\nLENGHT OF XAXIS FROM CALIBRATION:\n", len(self.calibratedXAxis))
         else:
             pass
 
-    def modify_curvature(self, xlim, ylim, method='gaussian'):
-        self.uncurver.load_array_image(imageArray=self.outputImage)
-        output = self.uncurver.uncurve_spectrum_image(xlim=xlim, ylim=ylim, method=method)
-        self.outputImage = output
+    def modify_curvature(self):
+        for ypos, i in enumerate(range(self.outputImage.height)):
+            corr = -int(self.curvatureEquation(i))
+            if corr >= 1:
+                self.outputImage[corr:, ypos] = self.outputImage[0:-corr, ypos]
+            elif corr < 0:
+                self.outputImage[0:corr-1, ypos] = self.outputImage[-corr:-1, ypos]
+            else:
+                self.outputImage[:, ypos] = self.outputImage[:, ypos]
 
     def modify_image_to_summed_plot(self):
         self.plotData[1] = [sum(self.outputImage[_, :]) for _ in range(self.outputImage.width)]
-        self.plotData[0] = np.linspace(0, self.outputImage.width, self.outputImage.width)
+        self.plotData[0] = np.linspace(0, self.outputImage.width-1, self.outputImage.width)
+        print(self.plotData[0])
 
     def modify_switch_units(self, units):
 
@@ -228,9 +242,11 @@ class RamanGrapher:
 
         self.ax = self.figure.add_subplot(n + 1, 1, n + 1)
 
-    def add_plot(self, figsize=(9, 8), label="", normalized=True, xlimits=(0, 1340), xunit='nm', subTicks=True):
+    def add_plot(self, figsize=(9, 8), label="", normalized=True, uncurve=True,  xlimits=(0, 1340), xunit='nm', subTicks=True, majorTicks=100):
         if self.figure is None:
             self.figure = plt.figure(figsize=figsize)
+        if uncurve:
+            self.modify_curvature()
         self.modify_image_to_summed_plot()
         self.modify_image_calibration()
         self.modify_smoothen(2, 0.2)
@@ -246,6 +262,8 @@ class RamanGrapher:
         
         if subTicks:
             self.ax.xaxis.set_minor_locator(AutoMinorLocator())
+
+        self.ax.xaxis.set_major_locator(MultipleLocator(majorTicks))
 
         self.ax.legend()
         plt.tight_layout()
@@ -269,20 +287,40 @@ class RamanGrapher:
         plt.tight_layout()
         plt.show()
 
+    def show_image(self, figsize=(12, 5)):
+        if self.figure is None:
+            self.figure = plt.figure(figsize=figsize)
+        if self.curvatureEquation is not None:
+            self.modify_curvature()
+        plt.imshow(self.outputImage.imageArray.astype(np.float32))
+        plt.tight_layout()
+        plt.show()
+
 
 if __name__ == '__main__':
+    # R6G 20mg/ml(saturated) sur Thorlabs paper
+    # rmg1 = RamanGrapher()
+    # rmg1.load_calibration_polynomial(1.67 * 10 ** -8, -4.89 * 10 ** -5, 0.164, 789, unit="nm")
+    #
+    # measure = RamanSpectrumImage("data/07-08-2020/measure_KimwipePaper_R6Gsaturated_300s_62mW_#4.tif")
+    # background = RamanSpectrumImage("data/07-08-2020/ref_KimwipePaper_300s_62mW_#4.tif")
+    #
+    # measureSERS = RamanSpectrumImage("data/02-08-2020/measure_OOSERSAu_R6G_5min-dry_10s_31p3_relcm.TIF")
+    # refSERS = RamanSpectrumImage("data/02-08-2020/ref_OOSERSAu_empty_noDescription_10s_31p3_nm.TIF")
+    #
+    # rmg1.load_ramanSpectrum_image(measure-background)
+    # rmg1.add_plot(xunit='cm-1', normalized=False, label="07-08-2020, R6G, C=saturated, kimwipePaper, 300s")
+    # rmg1.show_plot()
+
     rmg1 = RamanGrapher()
-    rmg1.load_calibration_polynomial(1.67 * 10 ** -8, -4.89 * 10 ** -5, 0.164, 789, unit="nm")
+    rmg1.load_calibration_polynomial(6.31*10**-9, -3.33*10**-5, 0.145, 900, unit="nm")
+    rmg1.load_curvature_polynomial(0.0002, -0.08, +8)
+    # x = [22, 186, 380, 477, 543, 552, 582, 658, 719, 766]
+    # y = [903.4, 926.0, 950.8, 962.3, 970.4, 971.1, 974.0, 982.9, 989.5, 994.4]
+    # rmg1.find_calibration_from_points(x, y)
 
     # R6G 20mg/ml(saturated) sur Thorlabs paper
-    measure = RamanSpectrumImage("data/07-08-2020/measure_KimwipePaper_R6Gsaturated_300s_62mW_#4.tif")
-    background = RamanSpectrumImage("data/07-08-2020/ref_KimwipePaper_300s_62mW_#4.tif")
-
-    measureSERS = RamanSpectrumImage("data/02-08-2020/measure_OOSERSAu_R6G_5min-dry_10s_31p3_relcm.TIF")
-    refSERS = RamanSpectrumImage("data/02-08-2020/ref_OOSERSAu_empty_noDescription_10s_31p3_nm.TIF")
-
-    rmg1.load_ramanSpectrum_image(measure-background)
-    rmg1.add_plot(xunit='cm-1', normalized=False, label="07-08-2020, R6G, C=saturated, kimwipePaper, 300s")
-    rmg1.add_plot(xunit='cm-1', normalized=False, label="07-08-2020, R6G, C=saturated, kimwipePaper, 300s")
+    measure = RamanSpectrumImage("C:\\Users\\marc-\\Documents\\Github\\SERS-labo\\data\\10-08-2020\\measure_Butter_300s_62mW_#5.tif")
+    rmg1.load_ramanSpectrum_image(measure)
+    rmg1.add_plot(figsize=(6, 4), xunit='cm-1', normalized=True, label="Butter, C=sat, glass slide, 300s, 62mW", xlimits=(750, 1200), majorTicks=50)
     rmg1.show_plot()
-
