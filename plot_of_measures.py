@@ -1,4 +1,4 @@
-from RamanGrapher import RamanGrapher
+from fff import RamanGrapher
 from RamanSpectrumImage import RamanSpectrumImage
 
 # PI ACTON SPECTROMETER FROM 10-08-2020

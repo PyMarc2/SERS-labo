@@ -19,6 +19,7 @@ class RamanSpectrumImage:
             self.imageArray = np.zeros((400, 1340), dtype=self.dataType)
 
         self.metadata = {"name": "", "expositionTime": 0, "sampleId": 0, "xunits": "pixels"}
+        self.isUncurved = False
 
     @property
     def shape(self):

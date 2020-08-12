@@ -2,7 +2,7 @@ from unittest import TestCase
 import gc
 from PIL import Image
 import numpy as np
-from RamanGrapher import RamanGrapher
+from fff import RamanGrapher
 
 
 class TestRamanGrapher(TestCase):

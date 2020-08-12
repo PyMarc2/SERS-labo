@@ -24,6 +24,7 @@ class RamanGrapher:
         self.dataUnit = dataUnit
         self.calibrationUnit = None
         self.calibrationEquation = None
+        self.isCalibrated = False
         self.curvatureEquation = None
 
         self.excitationWavelenght = 785
@@ -83,22 +84,25 @@ class RamanGrapher:
             self.curvatureEquation = np.poly1d(args)
 
     def modify_image_calibration(self):
-        if self.calibrationEquation is not None and self.dataUnit == "pixel":
+        if self.calibrationEquation is not None and self.dataUnit == "pixel" and not self.isCalibrated:
             self.plotData[0] = self.calibrationEquation(np.linspace(0, self.outputImage.width-1, self.outputImage.width))
             self.dataUnit = self.calibrationUnit
+            self.isCalibrated = True
             # print("\nLENGHT OF XAXIS FROM CALIBRATION:\n", len(self.calibratedXAxis))
         else:
             pass
 
     def modify_curvature(self):
-        for ypos, i in enumerate(range(self.outputImage.height)):
-            corr = -int(self.curvatureEquation(i))
-            if corr >= 1:
-                self.outputImage[corr:, ypos] = self.initialImage[0:-corr, ypos]
-            elif corr < 0:
-                self.outputImage[0:corr-1, ypos] = self.initialImage[-corr:-1, ypos]
-            else:
-                self.outputImage[:, ypos] = self.initialImage[:, ypos]
+        if not self.outputImage.isUncurved:
+            for ypos, i in enumerate(range(self.outputImage.height)):
+                corr = -int(self.curvatureEquation(i))
+                if corr >= 1:
+                    self.outputImage[corr:, ypos] = self.initialImage[0:-corr, ypos]
+                elif corr < 0:
+                    self.outputImage[0:corr-1, ypos] = self.initialImage[-corr:-1, ypos]
+                else:
+                    self.outputImage[:, ypos] = self.initialImage[:, ypos]
+            self.outputImage.isUncurved = True
 
     def modify_image_to_summed_plot(self):
         self.plotData[1] = [sum(self.outputImage[_, :]) for _ in range(self.outputImage.width)]
