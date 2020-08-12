@@ -35,8 +35,7 @@ class TestRamanGrapher(TestCase):
         self.assertEqual(self.ramanGrapher.initialImage.dtype, np.uint32)
 
     def test_reset_image(self):
-        for i in range(10**6):
-            print(i)
+        pass
 
     def test_save_image_dialog(self):
         pass
