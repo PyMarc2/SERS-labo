@@ -104,8 +104,8 @@ class RamanGrapher:
                     self.outputImage[:, ypos] = self.initialImage[:, ypos]
             self.outputImage.isUncurved = True
 
-    def modify_image_to_summed_plot(self):
-        self.plotData[1] = [sum(self.outputImage[_, :]) for _ in range(self.outputImage.width)]
+    def modify_image_to_summed_plot(self, a=0, b=400):
+        self.plotData[1] = [sum(self.outputImage[_, a:b]) for _ in range(self.outputImage.width)]
         self.plotData[0] = np.linspace(0, self.outputImage.width-1, self.outputImage.width)
         print(self.plotData[0])
 
@@ -144,12 +144,12 @@ class RamanGrapher:
 
         self.ax = self.figure.add_subplot(n + 1, 1, n + 1)
 
-    def add_plot(self, figsize=(9, 8), label="", normalized=False, uncurved=False,  xlimits=(0, 1340), xunit='nm', minorTicks="auto", majorTicks="auto"):
+    def add_plot(self, figsize=(9, 8), label="", normalized=False, uncurved=False, ylimits=(0, 400), xlimits=(0, 1340), xunit='nm', minorTicks="auto", majorTicks="auto"):
         if self.figure is None:
             self.figure = plt.figure(figsize=figsize)
         if uncurved:
             self.modify_curvature()
-        self.modify_image_to_summed_plot()
+        self.modify_image_to_summed_plot(a=ylimits[0], b=ylimits[1])
         self.modify_image_calibration()
         self.modify_smoothen(2, 0.2)
         self.modify_switch_units(xunit)
