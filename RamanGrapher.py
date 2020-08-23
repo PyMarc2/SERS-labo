@@ -150,7 +150,8 @@ class RamanGrapher:
         if uncurved:
             self.modify_curvature()
         self.modify_image_to_summed_plot(a=ylimits[0], b=ylimits[1])
-        self.modify_image_calibration()
+        if xunit != "pixel":
+            self.modify_image_calibration()
         self.modify_smoothen(2, 0.2)
         self.modify_switch_units(xunit)
 
